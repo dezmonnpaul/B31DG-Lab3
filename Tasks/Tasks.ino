@@ -36,6 +36,24 @@ struct Frequencies {
   unsigned long Freq03;                                 //Defining a variable to store the frequency measures in Task 3
 };
 
+struct Tasks {
+  byte Pins[2];
+  TaskFunction_t Taskname;
+  const char *taskString;
+  int stackSize;
+  int priority;
+  TaskHandle_t taskh;
+};
+
+//try removing Task 3 and repeat Task 2 with different frequency
+struct Tasks tasks[5]={
+  {{99,Out1},Task1, "Task1", 2048, 1, 0},
+  {{In2,99},Task2, "Task2", 2048, 1, 0},
+  {{In3,99},Task3, "Task3", 2048, 1, 0},
+  {{In4,Out4},Task4, "Task4", 2048, 1, 0},
+  {{99,99},Task5, "Task5", 2048, 1, 0}
+};
+
 struct Frequencies Freq23;
 
 #define In_DEBOUNCE 9
@@ -160,20 +178,34 @@ void LEDControl(void *argp){
 }
 
 void setup() {
-  Serial.begin(9600);          //Stats the serial communication at a baud rate of 9600 bps
+  int currentCPU=0;
 
-  pinMode(Out1,OUTPUT);        //Sets the Output pin for Task 1
-  
-  pinMode(In2,INPUT);          //Sets the Input pin for Task 2
+  Serial.begin(9600); //Starts the serial communication at a baud rate of 9600 bps
 
-  pinMode(In3, INPUT);         //Sets the Input pin for Task 3
-
-  pinMode(Out4,OUTPUT);        //Sets the LED Output pin for Task 4
+  currentCPU=xPortGetCoreID();
   pinMode(Out3v3,OUTPUT);      //Sets the 3.3V Output pin for Task 4
-  pinMode(In4,INPUT);          //Sets the Input pin for Task 4
-
   digitalWrite(Out3v3,HIGH);   //Sets the 3.3 Output pin for Task 4 to HIGH to output 3,3V
 
+  for (auto& task : tasks){
+    if(task.Pins[0]!=99){
+      pinMode(task.Pins[0],INPUT);
+    }
+    if(task.Pins[1]!=99){
+      pinMode(task.Pins[1],OUTPUT);
+      digitalWrite(task.Pins[1],LOW);
+    }
+    xTaskCreatePinnedToCore(
+      task.Taskname,
+      task.taskString,
+      task.stackSize,
+      &task,
+      task.priority,
+      &task.taskh,
+      currentCPU
+      );
+  }
+
+  
 }
 
 void loop() {
