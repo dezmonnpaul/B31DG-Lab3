@@ -31,10 +31,13 @@ int average04[]={0,0};                                //Defining an array to sto
 int Freq02_Percentage;                                //Defining a variable to store the frequency measured in Task 2 betweeen the range 0 to 99.
 int Freq03_Percentage;                              //Defining a variable to store the frequency measured in Task 3 betweeen the range 0 to 99.
 
-struct Frequencies {
-  unsigned long Freq02;                                 //Defining a variable to store the frequency measures in Task 2
-  unsigned long Freq03;                                 //Defining a variable to store the frequency measures in Task 3
-};
+unsigned long Freq02;                                 //Defining a variable to store the frequency measures in Task 2
+unsigned long Freq03;  
+
+// struct Frequencies {
+//   unsigned long Freq02;                                 //Defining a variable to store the frequency measures in Task 2
+//   unsigned long Freq03;                                 //Defining a variable to store the frequency measures in Task 3
+// };
 
 struct Tasks {
   byte Pins[2];
@@ -47,13 +50,16 @@ struct Tasks {
 
 //try removing Task 3 and repeat Task 2 with different frequency
 
-struct Frequencies Freq23;
+// struct Frequencies Freq23;
 
 #define In_DEBOUNCE 9
 
 #define LEDOut 10
 
 void Task1(void *argp){  
+  TickType_t LastWakeTime = xTaskGetTickCount();
+  const TickType_t Frequency =4;
+
   while(1){
     digitalWrite(Out1,HIGH);                           //HIGH for 200us,   
     delayMicroseconds(200);
@@ -62,28 +68,34 @@ void Task1(void *argp){
     digitalWrite(Out1,HIGH);                           //and HIGH for 30us,
     delayMicroseconds(30);
     digitalWrite(Out1,LOW);
+    vTaskDelayUntil(&LastWakeTime, Frequency);
                        //the signal is then kept to be LOW.
   }                             //Outputs a  digital signal that is 
 }
 
-void Task2(void *argp){      
+void Task2(void *argp){     
+  TickType_t LastWakeTime = xTaskGetTickCount();
+  const TickType_t Frequency =20; 
   while(1){
+    vTaskDelayUntil(&LastWakeTime,Frequency);
     Signal2=digitalRead(In2);                                     //Stores the initial state of the received signal
     time02=0;                                                     //Initialise time02 to 0
-    time02=pulseIn(In2,!Signal2,Task2MaxPeriod);                  //waits for the signal to change state and determines the time it takes before returning to the original state (half period of the input signal).
-                                                                //if the signal takes more than Task2MaxPeriod to change, the code stops waiting and returns 0
+    time02=pulseIn(In2,!Signal2,Task2MaxPeriod*2);                  //waits for the signal to change state and determines the time it takes before returning to the original state (half period of the input signal).                                                     //if the signal takes more than Task2MaxPeriod to change, the code stops waiting and returns 0
     if ((time02<(Task2MinPeriod/2)) && time02>0){                 //Determines if the measured half period is too long, returns 500 (half period of max frequency) if it is.
       time02=(Task2MinPeriod/2);
     }
     else if (time02<=0||time02>(Task2MaxPeriod/2)){                             //Determines if the measured half period has timed-out(pulseIn returns a 0) or is longer than the expected maximum value, returns 1500 (half period of min frequency) if it is.
       time02=(Task2MaxPeriod/2);
     }
-    Freq23.Freq02=1000000/(2*time02);                                    //Calculates the frequency of the input signal based on the measured half period.
+    Freq02=1000000/(2*time02);
+                                        //Calculates the frequency of the input signal based on the measured half period.
   }                             
   
 };
 
 void Task3(void *argp){
+  TickType_t LastWakeTime = xTaskGetTickCount();
+  const TickType_t Frequency =8;
   while(1){
     Signal3=digitalRead(In3);                                     //Stores the initial state of the received signal
     time03=0;                                                     //Initialise time03 to 0
@@ -95,12 +107,15 @@ void Task3(void *argp){
     else if (time03<=0||time03>((Task3MaxPeriod/2))){                             //Determines if the measured half period has timed-out(pulseIn returns a 0) or is longer than the expected maximum value, returns 1000 (half period of min frequency) if it is.
       time03=(Task3MaxPeriod/2);
     }
-    Freq23.Freq03=1000000/(2*time03);
+    Freq03=1000000/(2*time03);
+    vTaskDelayUntil(&LastWakeTime,Frequency);     
   }                                  
                                       //Calculates the frequency of the input signal based on the measured half period.
 };
 
 void Task4(void *argp){
+  TickType_t LastWakeTime = xTaskGetTickCount();
+  const TickType_t Frequency =20;
   while(1) {
     average04[0]=0;                               //Resets the average value to 0
     average04[1]=0;                               //Resets the number of readings to 0
@@ -120,20 +135,24 @@ void Task4(void *argp){
     if(average04[0]>(MAX_Range/2)){                    //Determines if : average > half of the maximum value
       digitalWrite(Out4,HIGH);                    //Turns ON a LED if average > half of the maximum value
     }
-    else{digitalWrite(Out4,LOW);}                 //Turns OFF the LED otherwise
-    taskYIELD();
+    else{digitalWrite(Out4,LOW);}   
+    vTaskDelayUntil(&LastWakeTime,Frequency);                   //Turns OFF the LED otherwise
+    
   }
   
   
 };
 
 void Task5(void *argp){
+  TickType_t LastWakeTime = xTaskGetTickCount();
+  const TickType_t Frequency =100;
   while(1){
-    Freq02_Percentage=99*(Freq23.Freq02-Task2MinFreq)/(Task2MaxFreq-Task2MinFreq);      //Converts the value of the frequency measured in Task 2 to a value between 0 and 99
-    Freq03_Percentage=99*(Freq23.Freq03-Task3MinFreq)/(Task3MaxFreq-Task3MinFreq);      //Converts the value of the frequency measured in Task 3 to a value between 0 and 99
+    Freq02_Percentage=99*(Freq02-Task2MinFreq)/(Task2MaxFreq-Task2MinFreq);      //Converts the value of the frequency measured in Task 2 to a value between 0 and 99
+    Freq03_Percentage=99*(Freq03-Task3MinFreq)/(Task3MaxFreq-Task3MinFreq);      //Converts the value of the frequency measured in Task 3 to a value between 0 and 99
     char string_Output[5];                                                        //Creates a stringOutput based on the integer values of Freq02_Percentage and Freq03_Percentage
     sprintf(string_Output,"%d,%d",Freq02_Percentage,Freq03_Percentage);
     Serial.println(string_Output);
+    vTaskDelayUntil(&LastWakeTime,Frequency);     
   }                                            //Outputs the string to the serial monitor
 };
 
@@ -171,8 +190,8 @@ void LEDControl(void *argp){
 }
 struct Tasks tasks[5]={
   {{99,Out1},Task1, "Task1", 2048, 1, 0},
-  {{In2,99},Task2, "Task2", 2048, 1, 0},
-  {{In3,99},Task3, "Task3", 2048, 1, 0},
+  {{In2,99},Task2, "Task2", 2048, 3, 0},
+  {{In3,99},Task3, "Task3", 2048, 2, 0},
   {{In4,Out4},Task4, "Task4", 2048, 1, 0},
   {{99,99},Task5, "Task5", 2048, 1, 0}
 };
@@ -186,26 +205,26 @@ void setup() {
   currentCPU=xPortGetCoreID();
   pinMode(Out3v3,OUTPUT);      //Sets the 3.3V Output pin for Task 4
   digitalWrite(Out3v3,HIGH);   //Sets the 3.3 Output pin for Task 4 to HIGH to output 3,3V
+  pinMode(Out1,OUTPUT);
+  pinMode(In2, INPUT);
+  pinMode(In3, INPUT);
+  pinMode(In4,INPUT);
+  pinMode(Out4,OUTPUT);
+  
 
   for (auto& task : tasks){
-    if(task.Pins[0]!=99){
-      pinMode(task.Pins[0],INPUT);
-    }
-    if(task.Pins[1]!=99){
-      pinMode(task.Pins[1],OUTPUT);
-      digitalWrite(task.Pins[1],LOW);
-    }
     xTaskCreatePinnedToCore(
       task.Taskname,
       task.taskString,
       task.stackSize,
-      &task,
+      NULL,
       task.priority,
       &task.taskh,
       currentCPU
       );
-  }
-
+    assert(task.taskh !=nullptr);
+      }
+  
   
 }
 
