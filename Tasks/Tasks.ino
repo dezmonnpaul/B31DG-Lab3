@@ -40,7 +40,9 @@ struct Frequencies Freq23;
 
 #define In_DEBOUNCE 9
 
-void Task1(){  
+#define LEDOut 10
+
+void Task1(void *argp){  
   while(1){
     digitalWrite(Out1,HIGH);                           //HIGH for 200us,   
     delayMicroseconds(200);
@@ -53,7 +55,7 @@ void Task1(){
   }                             //Outputs a  digital signal that is 
 }
 
-void Task2(){      
+void Task2(void *argp){      
   while(1){
     Signal2=digitalRead(In2);                                     //Stores the initial state of the received signal
     time02=0;                                                     //Initialise time02 to 0
@@ -70,7 +72,7 @@ void Task2(){
   
 };
 
-void Task3(){
+void Task3(void *argp){
   while(1){
     Signal3=digitalRead(In3);                                     //Stores the initial state of the received signal
     time03=0;                                                     //Initialise time03 to 0
@@ -87,7 +89,7 @@ void Task3(){
                                       //Calculates the frequency of the input signal based on the measured half period.
 };
 
-void Task4(){
+void Task4(void *argp){
   while(1) {
     average04[0]=0;                               //Resets the average value to 0
     average04[1]=0;                               //Resets the number of readings to 0
@@ -114,7 +116,7 @@ void Task4(){
   
 };
 
-void Task5(){
+void Task5(void *argp){
   while(1){
     Freq02_Percentage=99*(Freq23.Freq02-Task2MinFreq)/(Task2MaxFreq-Task2MinFreq);      //Converts the value of the frequency measured in Task 2 to a value between 0 and 99
     Freq03_Percentage=99*(Freq23.Freq03-Task3MinFreq)/(Task3MaxFreq-Task3MinFreq);      //Converts the value of the frequency measured in Task 3 to a value between 0 and 99
@@ -124,7 +126,7 @@ void Task5(){
   }                                            //Outputs the string to the serial monitor
 };
 
-void Debounce(){
+void Debounce(void *argp){
   bool currentRead=0;
   bool previousBounces=0;
   uint32_t previousReading=0xFFFFFFFF;
@@ -137,7 +139,7 @@ void Debounce(){
     if ((previousBounces & maxReading)==maxReading||(previousBounces & maxReading)==0){
       if(currentRead!=previousReading){
         callLED= !!currentRead;
-        
+        previousReading=currentRead;
       }
     }
     taskYIELD();
@@ -145,7 +147,15 @@ void Debounce(){
 
 }
 
-void LEDControl(){
+void LEDControl(void *argp){
+  bool calledLED;
+
+  digitalWrite(LEDOut,LOW);
+  while(1){
+    if(calledLED){
+      digitalWrite(LEDOut,calledLED^=0);
+    }
+  }
 
 }
 
