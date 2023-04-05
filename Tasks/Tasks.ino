@@ -167,10 +167,8 @@ void Debounce(void *argp){
     previousBounces=(previousBounces<<1)|currentRead;
     if ((previousBounces & maxReading)==maxReading||(previousBounces & maxReading)==0){
       if(currentRead!=previousReading){
-        Serial.println("Debounce");
         callLED= !!currentRead;
         if(xQueueSendToBack(queueHandler, &callLED,1)==pdPASS){
-          Serial.println("Queued");
         }
         previousReading=currentRead;
       }
@@ -190,7 +188,6 @@ void LEDControl(void *argp){
     xQueueReceive(queueHandler,&calledLED, portMAX_DELAY);
     //assert(s==pdPASS);
     if(calledLED){
-      Serial.print("Received");
       prevState^=1;
       digitalWrite(LEDOut,prevState);
     }
