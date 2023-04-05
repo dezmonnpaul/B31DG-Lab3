@@ -38,6 +38,7 @@ unsigned long Freq03;
 //   unsigned long Freq02;                                 //Defining a variable to store the frequency measures in Task 2
 //   unsigned long Freq03;                                 //Defining a variable to store the frequency measures in Task 3
 // };
+static QueueHandle_t queueHandler;
 
 struct Tasks {
   byte Pins[2];
@@ -169,6 +170,7 @@ void Debounce(void *argp){
     if ((previousBounces & maxReading)==maxReading||(previousBounces & maxReading)==0){
       if(currentRead!=previousReading){
         callLED= !!currentRead;
+        if(xQueueSendToBack(queueHandler, &callLED,1)==pdPASS)
         previousReading=currentRead;
       }
     }
@@ -179,26 +181,32 @@ void Debounce(void *argp){
 
 void LEDControl(void *argp){
   bool calledLED;
+  BaseType_t s;
 
   digitalWrite(LEDOut,LOW);
   while(1){
+    xQueueReceive(queueHandler,&calledLED, portMAX_DELAY);
+    //assert(s==pdPASS);
     if(calledLED){
       digitalWrite(LEDOut,calledLED^=0);
     }
   }
 
 }
-struct Tasks tasks[5]={
-  {{99,Out1},Task1, "Task1", 2048, 1, 0},
-  {{In2,99},Task2, "Task2", 2048, 3, 0},
-  {{In3,99},Task3, "Task3", 2048, 2, 0},
-  {{In4,Out4},Task4, "Task4", 2048, 1, 0},
-  {{99,99},Task5, "Task5", 2048, 1, 0}
+struct Tasks tasks[2]={
+  // {{99,Out1},Task1, "Task1", 1024, 1, 0},
+  // {{In2,99},Task2, "Task2", 2048, 3, 0},
+  // {{In3,99},Task3, "Task3", 2048, 2, 0},
+  // {{In4,Out4},Task4, "Task4", 1024, 1, 0},
+  // {{99,99},Task5, "Task5", 2048, 1, 0},
+  {{99,99},Debounce, "Debounce", 1024 ,1,0},
+  {{99,99},LEDControl, "LEDControl", 1024 ,1,0}
 };
 
 
 void setup() {
   int currentCPU=0;
+  BaseType_t handler;
 
   Serial.begin(9600); //Starts the serial communication at a baud rate of 9600 bps
 
@@ -210,7 +218,10 @@ void setup() {
   pinMode(In3, INPUT);
   pinMode(In4,INPUT);
   pinMode(Out4,OUTPUT);
+  pinMode(In_DEBOUNCE,INPUT);
+  pinMode(LEDOut,OUTPUT);
   
+  queueHandler=xQueueCreate(40,sizeof(bool));
 
   for (auto& task : tasks){
     xTaskCreatePinnedToCore(
@@ -222,6 +233,7 @@ void setup() {
       &task.taskh,
       currentCPU
       );
+    //assert(handler==pdPASS);
     assert(task.taskh !=nullptr);
       }
   
