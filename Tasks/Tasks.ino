@@ -53,9 +53,9 @@ struct Tasks {
 
 // struct Frequencies Freq23;
 
-#define In_DEBOUNCE 9
+#define In_DEBOUNCE 2
 
-#define LEDOut 10
+#define LEDOut 3
 
 void Task1(void *argp){  
   TickType_t LastWakeTime = xTaskGetTickCount();
@@ -139,9 +139,7 @@ void Task4(void *argp){
     else{digitalWrite(Out4,LOW);}   
     vTaskDelayUntil(&LastWakeTime,Frequency);                   //Turns OFF the LED otherwise
     
-  }
-  
-  
+  }  
 };
 
 void Task5(void *argp){
@@ -158,9 +156,9 @@ void Task5(void *argp){
 };
 
 void Debounce(void *argp){
-  bool currentRead=0;
-  bool previousBounces=0;
-  uint32_t previousReading=0xFFFFFFFF;
+  uint32_t currentRead=0;
+  uint32_t previousBounces=0;
+  uint32_t previousReading=0x00000000;
   uint32_t maxReading=0x7FFFFFFF;
   bool callLED;
 
@@ -169,8 +167,11 @@ void Debounce(void *argp){
     previousBounces=(previousBounces<<1)|currentRead;
     if ((previousBounces & maxReading)==maxReading||(previousBounces & maxReading)==0){
       if(currentRead!=previousReading){
+        Serial.println("Debounce");
         callLED= !!currentRead;
-        if(xQueueSendToBack(queueHandler, &callLED,1)==pdPASS)
+        if(xQueueSendToBack(queueHandler, &callLED,1)==pdPASS){
+          Serial.println("Queued");
+        }
         previousReading=currentRead;
       }
     }
@@ -181,6 +182,7 @@ void Debounce(void *argp){
 
 void LEDControl(void *argp){
   bool calledLED;
+  bool prevState=0;
   BaseType_t s;
 
   digitalWrite(LEDOut,LOW);
@@ -188,7 +190,9 @@ void LEDControl(void *argp){
     xQueueReceive(queueHandler,&calledLED, portMAX_DELAY);
     //assert(s==pdPASS);
     if(calledLED){
-      digitalWrite(LEDOut,calledLED^=0);
+      Serial.print("Received");
+      prevState^=1;
+      digitalWrite(LEDOut,prevState);
     }
   }
 
@@ -218,7 +222,7 @@ void setup() {
   pinMode(In3, INPUT);
   pinMode(In4,INPUT);
   pinMode(Out4,OUTPUT);
-  pinMode(In_DEBOUNCE,INPUT);
+  pinMode(In_DEBOUNCE,INPUT_PULLUP);
   pinMode(LEDOut,OUTPUT);
   
   queueHandler=xQueueCreate(40,sizeof(bool));
