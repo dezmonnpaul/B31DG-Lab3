@@ -31,17 +31,21 @@ int average04[]={0,0};                                //Defining an array to sto
 int Freq02_Percentage;                                //Defining a variable to store the frequency measured in Task 2 betweeen the range 0 to 99.
 int Freq03_Percentage;                              //Defining a variable to store the frequency measured in Task 3 betweeen the range 0 to 99.
 
-unsigned long Freq02;                                 //Defining a variable to store the frequency measures in Task 2
-unsigned long Freq03;  
+// unsigned long Freq02;                                 //Defining a variable to store the frequency measures in Task 2
+// unsigned long Freq03;  
 
-// struct Frequencies {
-//   unsigned long Freq02;                                 //Defining a variable to store the frequency measures in Task 2
-//   unsigned long Freq03;                                 //Defining a variable to store the frequency measures in Task 3
-// };
+struct Frequencies {
+  unsigned long Freq02;                                 //Defining a variable to store the frequency measures in Task 2
+  unsigned long Freq03;                                 //Defining a variable to store the frequency measures in Task 3
+};
+
+Frequencies Freq23;
+
 static QueueHandle_t queueHandler;
 
+static SemaphoreHandle_t sem;
+
 struct Tasks {
-  byte Pins[2];
   TaskFunction_t Taskname;
   const char *taskString;
   int stackSize;
@@ -77,6 +81,7 @@ void Task1(void *argp){
 void Task2(void *argp){     
   TickType_t LastWakeTime = xTaskGetTickCount();
   const TickType_t Frequency =20; 
+  BaseType_t semh;
   while(1){
     vTaskDelayUntil(&LastWakeTime,Frequency);
     Signal2=digitalRead(In2);                                     //Stores the initial state of the received signal
@@ -88,7 +93,11 @@ void Task2(void *argp){
     else if (time02<=0||time02>(Task2MaxPeriod/2)){                             //Determines if the measured half period has timed-out(pulseIn returns a 0) or is longer than the expected maximum value, returns 1500 (half period of min frequency) if it is.
       time02=(Task2MaxPeriod/2);
     }
-    Freq02=1000000/(2*time02);
+    if (xSemaphoreTake(sem, portMAX_DELAY)==pdTRUE){
+      Freq23.Freq02=1000000/(2*time02);
+      semh=xSemaphoreGive(sem);
+      assert(semh==pdPASS);
+    }
                                         //Calculates the frequency of the input signal based on the measured half period.
   }                             
   
@@ -97,6 +106,7 @@ void Task2(void *argp){
 void Task3(void *argp){
   TickType_t LastWakeTime = xTaskGetTickCount();
   const TickType_t Frequency =8;
+  BaseType_t semh;
   while(1){
     Signal3=digitalRead(In3);                                     //Stores the initial state of the received signal
     time03=0;                                                     //Initialise time03 to 0
@@ -108,7 +118,12 @@ void Task3(void *argp){
     else if (time03<=0||time03>((Task3MaxPeriod/2))){                             //Determines if the measured half period has timed-out(pulseIn returns a 0) or is longer than the expected maximum value, returns 1000 (half period of min frequency) if it is.
       time03=(Task3MaxPeriod/2);
     }
-    Freq03=1000000/(2*time03);
+    if (xSemaphoreTake(sem, portMAX_DELAY)==pdTRUE){
+      Freq23.Freq03=1000000/(2*time03);
+      semh=xSemaphoreGive(sem);
+      assert(semh==pdPASS);
+    }    
+
     vTaskDelayUntil(&LastWakeTime,Frequency);     
   }                                  
                                       //Calculates the frequency of the input signal based on the measured half period.
@@ -145,9 +160,14 @@ void Task4(void *argp){
 void Task5(void *argp){
   TickType_t LastWakeTime = xTaskGetTickCount();
   const TickType_t Frequency =100;
+  BaseType_t semh;
   while(1){
-    Freq02_Percentage=99*(Freq02-Task2MinFreq)/(Task2MaxFreq-Task2MinFreq);      //Converts the value of the frequency measured in Task 2 to a value between 0 and 99
-    Freq03_Percentage=99*(Freq03-Task3MinFreq)/(Task3MaxFreq-Task3MinFreq);      //Converts the value of the frequency measured in Task 3 to a value between 0 and 99
+    if(xSemaphoreTake(sem, portMAX_DELAY)==pdTRUE){
+    Freq02_Percentage=99*(Freq23.Freq02-Task2MinFreq)/(Task2MaxFreq-Task2MinFreq);      //Converts the value of the frequency measured in Task 2 to a value between 0 and 99
+    Freq03_Percentage=99*(Freq23.Freq03-Task3MinFreq)/(Task3MaxFreq-Task3MinFreq);
+    semh=xSemaphoreGive(sem);
+    assert(semh==pdPASS);
+    }      //Converts the value of the frequency measured in Task 3 to a value between 0 and 99
     char string_Output[5];                                                        //Creates a stringOutput based on the integer values of Freq02_Percentage and Freq03_Percentage
     sprintf(string_Output,"%d,%d",Freq02_Percentage,Freq03_Percentage);
     Serial.println(string_Output);
@@ -156,6 +176,8 @@ void Task5(void *argp){
 };
 
 void Debounce(void *argp){
+  TickType_t LastWakeTime = xTaskGetTickCount();
+  const TickType_t Frequency =5;
   uint32_t currentRead=0;
   uint32_t previousBounces=0;
   uint32_t previousReading=0x00000000;
@@ -174,34 +196,38 @@ void Debounce(void *argp){
       }
     }
     taskYIELD();
+    vTaskDelayUntil(&LastWakeTime, Frequency);
   }
 
 }
 
 void LEDControl(void *argp){
+  TickType_t LastWakeTime = xTaskGetTickCount();
+  const TickType_t Frequency =5;
   bool calledLED;
   bool prevState=0;
   BaseType_t s;
 
   digitalWrite(LEDOut,LOW);
   while(1){
-    xQueueReceive(queueHandler,&calledLED, portMAX_DELAY);
-    //assert(s==pdPASS);
+    s=xQueueReceive(queueHandler,&calledLED, portMAX_DELAY);
+    assert(s==pdPASS);
     if(calledLED){
       prevState^=1;
       digitalWrite(LEDOut,prevState);
     }
+    vTaskDelayUntil(&LastWakeTime, Frequency);
   }
 
 }
-struct Tasks tasks[2]={
-  // {{99,Out1},Task1, "Task1", 1024, 1, 0},
-  // {{In2,99},Task2, "Task2", 2048, 3, 0},
-  // {{In3,99},Task3, "Task3", 2048, 2, 0},
-  // {{In4,Out4},Task4, "Task4", 1024, 1, 0},
-  // {{99,99},Task5, "Task5", 2048, 1, 0},
-  {{99,99},Debounce, "Debounce", 1024 ,1,0},
-  {{99,99},LEDControl, "LEDControl", 1024 ,1,0}
+struct Tasks tasks[7]={
+  {Task1, "Task1", 1024, 1, 0},
+  {Task2, "Task2", 2048, 3, 0},
+  {Task3, "Task3", 2048, 2, 0},
+  {Task4, "Task4", 1024, 1, 0},
+  {Task5, "Task5", 2048, 1, 0},
+  {Debounce, "Debounce", 1024 ,1,0},
+  {LEDControl, "LEDControl", 1024 ,1,0}
 };
 
 
@@ -223,9 +249,10 @@ void setup() {
   pinMode(LEDOut,OUTPUT);
   
   queueHandler=xQueueCreate(40,sizeof(bool));
+  sem=xSemaphoreCreateMutex();
 
   for (auto& task : tasks){
-    xTaskCreatePinnedToCore(
+    handler=xTaskCreatePinnedToCore(
       task.Taskname,
       task.taskString,
       task.stackSize,
@@ -234,7 +261,7 @@ void setup() {
       &task.taskh,
       currentCPU
       );
-    //assert(handler==pdPASS);
+    assert(handler==pdPASS);
     assert(task.taskh !=nullptr);
       }
   
